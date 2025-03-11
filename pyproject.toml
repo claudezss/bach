@@ -1,0 +1,58 @@
+[build-system]
+# Minimum requirements for the build system to execute.
+requires = [
+  # sync with setup.py until we discard non-pep-517/518
+  "setuptools>=45.0",
+  "setuptools-scm[toml]>=6.2.3",
+  "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["bach"]
+
+
+[project]
+name = "bach"
+dynamic = ["version"]
+authors = [
+  { name="Yan Zhang", email="dev.claude.yan.zhang@gmail.com" },
+]
+description = "Music Gen"
+readme = "README.md"
+keywords = ["python", "ML"]
+license = { file="LICENSE" }
+requires-python = ">=3.12"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries"
+]
+
+dependencies = [
+    "numpy",
+    "datasets",
+    "torch",
+    "pygame",
+    "huggingface_hub",
+    "pretty_midi",
+    "tqdm"
+]
+
+[project.optional-dependencies]
+
+dev = ["pre-commit", "black", "isort"]
+
+[tool.isort]
+force_grid_wrap=0
+include_trailing_comma=true
+line_length=120
+multi_line_output=3
+skip_glob=["env/*", 'docs/*']
+profile = "black"
+
+[tool.black]
+line_length = 120
+include = ["bach/*"]
