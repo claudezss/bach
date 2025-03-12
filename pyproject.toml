@@ -38,7 +38,8 @@ dependencies = [
     "pygame",
     "huggingface_hub",
     "pretty_midi",
-    "tqdm"
+    "tqdm",
+    "typer"
 ]
 
 [project.optional-dependencies]

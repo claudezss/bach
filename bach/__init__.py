@@ -3,4 +3,4 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)

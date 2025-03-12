@@ -8,3 +8,10 @@ ML based music generator
 pip install uv
 uv pip install -r pyproject.toml --all-extras
 ```
+
+## Data
+
+```shell
+ python -m bach data load
+ python -m bach data generate
+```
