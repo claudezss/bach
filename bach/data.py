@@ -8,7 +8,6 @@ from typing import Optional
 
 import numpy as np
 import pretty_midi
-import torch
 import typer
 from datasets import load_dataset
 from huggingface_hub import hf_hub_download
@@ -95,7 +94,7 @@ def load(cache_dir: str = ROOT_DIR.parent / "data_cache", n_workers: int = None)
     print(f"File paths were saved to {file_path_cache.absolute()}")
 
 
-def midi_to_notes(midi_path, sequence_length=150) -> np.ndarray:
+def midi_to_notes(midi_path, sequence_length=30, shift=15) -> np.ndarray:
     try:
         midi = pretty_midi.PrettyMIDI(midi_path)
     except Exception as e:
@@ -105,16 +104,28 @@ def midi_to_notes(midi_path, sequence_length=150) -> np.ndarray:
     for instrument in midi.instruments:
         if not instrument.is_drum:  # Exclude drum tracks
             for note in instrument.notes:
-                notes.append([note.start, note.pitch, note.velocity])
+                notes.append([note.start, note.duration, note.pitch, note.velocity])
 
     notes = sorted(notes, key=lambda x: x[0])  # Sort by start time
     notes = np.array(notes)  # Convert to NumPy array
 
-    if len(notes) < sequence_length:
-        padding = np.zeros((sequence_length - len(notes), 3))  # Pad if needed
-        notes = np.vstack([notes, padding])
+    data = []
 
-    return notes[:sequence_length]
+    idx_start = 0
+    idx_end = sequence_length
+
+    for i in range(len(notes) // shift):
+        if idx_end < len(notes):
+            note_data = notes[idx_start:idx_end]
+        else:
+            note_data = notes[idx_start:]
+            padding = np.zeros((sequence_length - len(note_data), 4))  # Pad if needed
+            note_data = np.vstack([note_data, padding])
+        idx_start += shift
+        idx_end += shift
+        data.append(note_data)
+
+    return np.array(data)
 
 
 @app.command()
@@ -138,8 +149,9 @@ def generate(cache_dir: str = ROOT_DIR.parent / "data_cache", n_workers: int = N
                 results.append(result)
 
     # D = # of midi data X # sequence X # of features
-    results = np.array(results)
-    torch.save(results, cache_dir / "dataset.pt")
+    results = np.vstack(results)
+
+    np.save(cache_dir / "dataset.npy", results)
 
 
 if __name__ == "__main__":
