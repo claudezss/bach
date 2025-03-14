@@ -79,5 +79,5 @@ def generate_music() -> pretty_midi.PrettyMIDI:
     midi.write("test.mid")
 
 
-# generate_random_midi("input.mid")
+# generate_random_midi("input1.mid")
 generate_music()

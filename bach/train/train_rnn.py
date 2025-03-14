@@ -2,19 +2,19 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from bach import ROOT_DIR
 from bach.dataset import RNNDataset
 from bach.model import MusicRNN
-
-ARTIFACT_PATH = ROOT_DIR.parent / "artifacts"
-
-ARTIFACT_PATH.mkdir(exist_ok=True, parents=True)
+from bach.train import ARTIFACT_PATH
 
 
 def train_rnn(data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.npy", epochs: int = 200) -> None:
+    artifact_path = ARTIFACT_PATH / "rnn"
+
+    artifact_path.mkdir(exist_ok=True, parents=True)
 
     dataset = RNNDataset(data_path)
 
@@ -84,7 +84,7 @@ def train_rnn(data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.npy", 
             best_loss = avg_test_loss
 
         if is_best:
-            torch.save(model.state_dict(), ARTIFACT_PATH / "rnn_model.pt")
+            torch.save(model.state_dict(), artifact_path / "rnn_model.pt")
 
         epoch_loop.set_description(f"Epoch [{epoch + 1}/{epochs}]")
         epoch_loop.set_postfix(train_loss=avg_loss, test_loss=avg_test_loss, is_best=is_best)
