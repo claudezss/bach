@@ -1,11 +1,19 @@
+from pathlib import Path
+
 import numpy as np
 import pretty_midi
 import torch
+import typer
+from huggingface_hub import hf_hub_download
 
-from bach.model import MusicRNN
+from bach.data import MIDIProcessor
+from bach.model import MusicRNN, MusicTransformer
+
+app = typer.Typer()
 
 
-def generate_random_midi(output_path="random_music.mid", num_notes=30, instrument_name="Acoustic Grand Piano"):
+@app.command()
+def generate_random_midi(output_path="random_music.mid", num_notes=127, instrument_name="Acoustic Grand Piano"):
     """
     Generates a random MIDI file with a specified number of notes.
 
@@ -79,5 +87,53 @@ def generate_music() -> pretty_midi.PrettyMIDI:
     midi.write("test.mid")
 
 
-# generate_random_midi("input1.mid")
-generate_music()
+@app.command()
+def generate_music_by_transformer(
+    input_midi_path: str,
+    output_midi_path: str,
+):
+    cache_dir = Path(__file__).parent.parent / "data_cache" / "model"
+    cache_dir.mkdir(exist_ok=True, parents=True)
+
+    hf_hub_download(
+        repo_id="claudezss/bach",
+        filename="music_transformer.pt",
+        repo_type="model",
+        cache_dir=cache_dir,
+        local_dir=cache_dir,
+    )
+
+    model = MusicTransformer()
+    model.load_state_dict(torch.load(cache_dir / "music_transformer.pt", map_location="cpu")["model_state_dict"])
+    processor = MIDIProcessor()
+    model.processor = processor
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model.to(device)
+    model.eval()
+
+    token = processor.midi_to_tokens(input_midi_path)
+
+    sequence = []
+
+    seq_length = 512
+
+    if len(token) > 0:
+
+        for i in range(0, len(token) - seq_length, seq_length // 2):
+            seq = token[i : i + seq_length]
+            if len(seq) == seq_length:
+                sequence.append(seq)
+
+        # Add last sequence if it's not too short
+        if len(token) % seq_length > seq_length // 2:
+            last_seq = token[-seq_length:]
+            if len(last_seq) == seq_length:
+                sequence.append(last_seq)
+
+    generated_tokens = model.generate(sequence[0][:200], max_length=1000, temperature=1)
+
+    processor.tokens_to_midi(generated_tokens, output_midi_path)
+
+
+if __name__ == "__main__":
+    app()

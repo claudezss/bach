@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import typer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -8,9 +9,12 @@ from bach.dataset import MIDIDataset
 from bach.model import MusicTransformer
 from bach.train import ARTIFACT_PATH
 
+app = typer.Typer()
+
 
 # Training utilities
-def train_music_transformer(epochs=10):
+@app.command()
+def train(epochs=10):
 
     artifacts_path = ARTIFACT_PATH / "transformer"
 
@@ -91,4 +95,5 @@ def train_music_transformer(epochs=10):
         )
 
 
-train_music_transformer()
+if __name__ == "__main__":
+    app()

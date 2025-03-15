@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import typer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -10,8 +11,11 @@ from bach.dataset import RNNDataset
 from bach.model import MusicRNN
 from bach.train import ARTIFACT_PATH
 
+app = typer.Typer()
 
-def train_rnn(data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.npy", epochs: int = 200) -> None:
+
+@app.command()
+def train(data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.npy", epochs: int = 200) -> None:
     artifact_path = ARTIFACT_PATH / "rnn"
 
     artifact_path.mkdir(exist_ok=True, parents=True)
@@ -90,4 +94,5 @@ def train_rnn(data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.npy", 
         epoch_loop.set_postfix(train_loss=avg_loss, test_loss=avg_test_loss, is_best=is_best)
 
 
-train_rnn()
+if __name__ == "__main__":
+    app()

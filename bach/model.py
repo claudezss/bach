@@ -3,9 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 # RNN Model
-
-
 class MusicRNN(nn.Module):
 
     def __init__(self, input_size=4, hidden_size=256, num_layers=4, output_size=4):
@@ -44,8 +43,10 @@ class PositionalEncoding(nn.Module):
         return x + self.pe[:, : x.size(1)]
 
 
-class MusicTransformer(nn.Module):
-    def __init__(self, vocab_size, d_model=EMBEDDING_DIM, nhead=NUM_HEADS, num_layers=NUM_LAYERS, dropout=DROPOUT):
+class MusicTransformer(
+    nn.Module,
+):
+    def __init__(self, vocab_size=390, d_model=EMBEDDING_DIM, nhead=NUM_HEADS, num_layers=NUM_LAYERS, dropout=DROPOUT):
         super(MusicTransformer, self).__init__()
 
         self.embedding = nn.Embedding(vocab_size, d_model)
