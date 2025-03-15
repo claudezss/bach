@@ -14,7 +14,7 @@ app = typer.Typer()
 
 # Training utilities
 @app.command()
-def train(epochs=10):
+def train(epochs: int = 10):
 
     artifacts_path = ARTIFACT_PATH / "transformer"
 

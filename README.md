@@ -17,11 +17,11 @@ python -m bach data load
 
 # create rnn dataset and train
 python -m bach data generate-rnn-dataset
-python -m rnn train
+python -m bach rnn train
 
 # create transformer dataset and train
-python -m bach generate-transformer-dataset
-python -m transformer train
+python -m bach data generate-transformer-dataset
+python -m bach transformer train
 
 # upload model artifact
 python -m batch artifact upload-transformer-model ${path-to-model-artifact}
