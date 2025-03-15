@@ -6,6 +6,7 @@ import torch
 import typer
 from huggingface_hub import hf_hub_download
 
+from bach import get_device
 from bach.data import MIDIProcessor
 from bach.model import MusicRNN, MusicTransformer
 
@@ -107,7 +108,7 @@ def generate_music_by_transformer(
     model.load_state_dict(torch.load(cache_dir / "music_transformer.pt", map_location="cpu")["model_state_dict"])
     processor = MIDIProcessor()
     model.processor = processor
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = get_device()
     model.to(device)
     model.eval()
 

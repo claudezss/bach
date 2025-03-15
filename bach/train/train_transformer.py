@@ -4,6 +4,7 @@ import typer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from bach import get_device
 from bach.data import MIDIProcessor
 from bach.dataset import MIDIDataset
 from bach.model import MusicTransformer
@@ -28,7 +29,7 @@ def train(epochs: int = 10):
 
     model = MusicTransformer(vocab_size=processor.vocab_size)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = get_device()
 
     # Initialize optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9)

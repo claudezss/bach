@@ -6,7 +6,7 @@ import typer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from bach import ROOT_DIR
+from bach import ROOT_DIR, get_device
 from bach.dataset import RNNDataset
 from bach.model import MusicRNN
 from bach.train import ARTIFACT_PATH
@@ -26,7 +26,7 @@ def train(data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.npy", epoc
 
     test_loader = DataLoader(dataset[80000:100000], batch_size=328, shuffle=False)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = get_device()
 
     print(device)
 
