@@ -92,6 +92,9 @@ def generate_music() -> pretty_midi.PrettyMIDI:
 def generate_music_by_transformer(
     input_midi_path: str,
     output_midi_path: str,
+    temperature: float = 0.8,
+    input_seq_length: int = 100,
+    max_output_seq_length: int = 200,
 ):
     cache_dir = Path(__file__).parent.parent / "data_cache" / "model"
     cache_dir.mkdir(exist_ok=True, parents=True)
@@ -131,9 +134,12 @@ def generate_music_by_transformer(
             if len(last_seq) == seq_length:
                 sequence.append(last_seq)
 
-    generated_tokens = model.generate(sequence[0][:200], max_length=1000, temperature=1)
+    input = sequence[0][:input_seq_length]
+    generated_tokens = model.generate(input, max_length=max_output_seq_length, temperature=temperature)
 
-    processor.tokens_to_midi(generated_tokens, output_midi_path)
+    output_midi_path = Path(output_midi_path)
+    processor.tokens_to_midi(input, str((output_midi_path.parent / "input.mid").absolute()))
+    processor.tokens_to_midi(generated_tokens, str(output_midi_path.absolute()))
 
 
 if __name__ == "__main__":
