@@ -24,6 +24,8 @@ python -m bach data generate-transformer-dataset
 python -m bach transformer train
 
 # upload model artifact
-python -m batch artifact upload-transformer-model ${path-to-model-artifact}
-python -m batch artifact upload-rnn-model ${path-to-model-artifact}
+python -m bach artifact upload-transformer-model ${path-to-model-artifact}
+python -m bach artifact upload-rnn-model ${path-to-model-artifact}
+
+python -m bach infer generate-music-by-transformer ${path-to-input-midi-file} ${path-to-output-midi-file}
 ```
