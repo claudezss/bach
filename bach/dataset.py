@@ -7,6 +7,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from bach import ROOT_DIR
+from bach.data import EOS_TOKEN, PAD_TOKEN, SOS_TOKEN
 
 
 class RNNDataset(Dataset):
@@ -24,6 +25,36 @@ class RNNDataset(Dataset):
 
 
 # Dataset
+
+
+class MusicDataset(Dataset):
+    def __init__(self, tokens_file_path=ROOT_DIR.parent / "data_cache" / "transformer_dataset.pkl", max_seq_len=512):
+        self.max_seq_len = max_seq_len
+        self.srcs = []
+        self.tgts = []
+        with open(tokens_file_path, "rb") as f:
+            self.tokens = pickle.load(f)
+
+        for token in tqdm(self.tokens):
+            if len(token) > self.max_seq_len:
+                token = token[: self.max_seq_len]
+            else:
+                token = token + [PAD_TOKEN] * (self.max_seq_len - len(token))
+
+            # Convert to tensors
+            src = torch.tensor(token[:-1], dtype=torch.long)
+            tgt = torch.tensor(token[1:], dtype=torch.long)
+
+            self.srcs.append(src)
+            self.tgts.append(tgt)
+
+    def __len__(self):
+        return len(self.srcs)
+
+    def __getitem__(self, idx):
+        return self.srcs[idx], self.tgts[idx]
+
+
 class MIDIDataset(Dataset):
     def __init__(self, tokens_file_path=ROOT_DIR.parent / "data_cache" / "transformer_dataset.pkl", seq_length=512):
 

@@ -1,6 +1,8 @@
 import json
 import logging
+import math
 import multiprocessing
+import os
 import pickle
 import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -156,147 +158,158 @@ def generate_rnn_dataset(cache_dir: str = ROOT_DIR.parent / "data_cache", n_work
         pickle.dump(results, f)
 
 
+# Constants
+MAX_SEQ_LEN = 512  # Maximum sequence length
+VOCAB_SIZE = 512  # Size of vocabulary (pitch + duration + instrument + special tokens)
+D_MODEL = 256  # Embedding dimension
+N_HEADS = 8  # Number of attention heads
+N_LAYERS = 6  # Number of transformer layers
+D_FF = 1024  # Feedforward dimension
+DROPOUT = 0.1  # Dropout rate
+
+# Special tokens
+PAD_TOKEN = 0
+SOS_TOKEN = 1
+EOS_TOKEN = 2
+
+
 class MIDIProcessor:
-    def __init__(self, resolution=100):
-        self.resolution = resolution  # Time steps per quarter note
-        # Define vocabulary size based on MIDI event types
-        # Notes (128), velocities (32 bins), time shifts (100 bins), and special tokens
-        self.note_range = 128  # MIDI notes 0-127
-        self.velocity_bins = 32  # Quantized velocity levels
-        self.time_bins = 100  # Quantized time shift bins
+    def __init__(self, vocab_size=VOCAB_SIZE):
+        # Reserved tokens
+        self.pad_token = PAD_TOKEN
+        self.sos_token = SOS_TOKEN
+        self.eos_token = EOS_TOKEN
 
-        # Token indices:
-        # 0-127: Note-on events (pitch)
-        # 128-159: Velocity bins
-        # 160-259: Time-shift bins
-        # 260-387: Note-off events (pitch)
-        # 388-389: Special tokens (PAD, EOS)
-        self.vocab_size = 390
+        # Token ranges
+        self.start_pitch = 10
+        self.num_pitches = 128
+        self.start_duration = self.start_pitch + self.num_pitches
+        self.num_durations = 100  # Quantized durations
+        self.start_instrument = self.start_duration + self.num_durations
+        self.num_instruments = 16  # General MIDI has 16 instrument families
 
-        # Special tokens
-        self.PAD_TOKEN = 388
-        self.EOS_TOKEN = 389
+        assert self.start_instrument + self.num_instruments < vocab_size, "Vocabulary size too small"
 
-    def quantize_velocity(self, velocity):
-        """Quantize velocity (0-127) into fewer bins"""
-        return 128 + min(int(velocity * self.velocity_bins / 128), self.velocity_bins - 1)
+    def encode_note(self, pitch, duration_bin, instrument):
+        pitch_token = self.start_pitch + pitch
+        duration_token = self.start_duration + duration_bin
+        instrument_token = self.start_instrument + instrument
+        return [instrument_token, pitch_token, duration_token]
 
-    def quantize_time(self, time_delta):
-        """Quantize time delta into time bins"""
-        # Convert time in seconds to time bins
-        time_bin = min(int(time_delta * self.resolution), self.time_bins - 1)
-        return 160 + time_bin
+    def decode_token(self, token):
+        if token < self.start_pitch:
+            return {"type": "special", "value": token}
+        elif token < self.start_duration:
+            return {"type": "pitch", "value": token - self.start_pitch}
+        elif token < self.start_instrument:
+            return {"type": "duration", "value": token - self.start_duration}
+        else:
+            return {"type": "instrument", "value": token - self.start_instrument}
 
-    def midi_to_tokens(self, midi_file: str) -> List[int]:
-        """Convert a MIDI file to a sequence of tokens"""
-        try:
-            # Load MIDI file
-            midi_data = pretty_midi.PrettyMIDI(midi_file)
-            tokens = []
+    def quantize_duration(self, duration):
+        # Quantize duration to one of num_durations bins
+        # Using log scale to better represent shorter durations
+        max_duration = 4.0  # Maximum duration in seconds
+        if duration > max_duration:
+            duration = max_duration
 
-            # Process each instrument
-            for instrument in midi_data.instruments:
-                # Skip drum tracks
-                if instrument.is_drum:
-                    continue
+        # Log scale quantization
+        bin_idx = int(self.num_durations * math.log(1 + duration * 10) / math.log(1 + max_duration * 10))
+        return min(bin_idx, self.num_durations - 1)
 
-                # Sort notes by start time
-                notes = sorted(instrument.notes, key=lambda note: note.start)
+    def dequantize_duration(self, bin_idx):
+        # Convert bin back to duration
+        max_duration = 4.0
+        return (math.exp(bin_idx * math.log(1 + max_duration * 10) / self.num_durations) - 1) / 10
 
-                # Process notes
-                last_time = 0
-                for note in notes:
-                    # Add time shift token
-                    time_delta = note.start - last_time
-                    if time_delta > 0:
-                        time_token = self.quantize_time(time_delta)
-                        tokens.append(time_token)
+    def midi_to_sequence(self, midi_file):
+        """Convert MIDI file to token sequence"""
+        if isinstance(midi_file, str):
+            try:
+                midi_data = pretty_midi.PrettyMIDI(midi_file)
+            except Exception as e:
+                os.remove(midi_file)
+                return None
+        else:
+            midi_data = midi_file
 
-                    # Add note-on token
-                    tokens.append(note.pitch)  # Note on: 0-127
+        # Sort all notes by their start time
+        all_notes = []
+        for i, instrument in enumerate(midi_data.instruments):
+            instrument_id = min(i, self.num_instruments - 1)  # Limit to available instrument tokens
+            for note in instrument.notes:
+                all_notes.append(
+                    {"start": note.start, "end": note.end, "pitch": note.pitch, "instrument": instrument_id}
+                )
 
-                    # Add velocity token
-                    velocity_token = self.quantize_velocity(note.velocity)
-                    tokens.append(velocity_token)
+        all_notes.sort(key=lambda x: x["start"])
 
-                    # Update last time for the next note
-                    last_time = note.start
+        # Convert to token sequence
+        tokens = [self.sos_token]
+        for note in all_notes:
+            duration = note["end"] - note["start"]
+            duration_bin = self.quantize_duration(duration)
+            note_tokens = self.encode_note(note["pitch"], duration_bin, note["instrument"])
+            tokens.extend(note_tokens)
 
-                    # Add time shift to note-off
-                    note_duration = note.end - note.start
-                    time_token = self.quantize_time(note_duration)
-                    tokens.append(time_token)
+        tokens.append(self.eos_token)
 
-                    # Add note-off token
-                    tokens.append(260 + note.pitch)  # Note off: 260-387
+        return tokens
 
-            tokens.append(self.EOS_TOKEN)  # End of sequence
-            return tokens
-        except Exception as e:
-            print(f"Error processing MIDI file {midi_file}: {e}")
-            return []
-
-    def tokens_to_midi(self, tokens: List[int], output_file: str):
-        """Convert a sequence of tokens back to a MIDI file"""
-        midi = pretty_midi.PrettyMIDI()
-        instrument = pretty_midi.Instrument(program=0)  # Piano by default
+    def sequence_to_midi(self, tokens, tempo=120):
+        """Convert token sequence back to MIDI"""
+        midi_data = pretty_midi.PrettyMIDI(initial_tempo=tempo)
+        instruments = [pretty_midi.Instrument(program=i) for i in range(self.num_instruments)]
 
         current_time = 0.0
-        active_notes = {}  # pitch -> (start_time, velocity)
+        current_instrument = 0
+        current_pitch = 60
 
         i = 0
         while i < len(tokens):
             token = tokens[i]
-
-            # Note-on event
-            if 0 <= token < 128:
-                pitch = token
-
-                # Get velocity (should follow note-on)
-                if i + 1 < len(tokens) and 128 <= tokens[i + 1] < 160:
-                    velocity_token = tokens[i + 1]
-                    velocity = int((velocity_token - 128) * 128 / self.velocity_bins)
-                    i += 1
-                else:
-                    velocity = 64  # Default velocity
-
-                # Store note start info
-                active_notes[pitch] = (current_time, velocity)
-
-            # Time-shift event
-            elif 160 <= token < 260:
-                time_bin = token - 160
-                time_delta = time_bin / self.resolution
-                current_time += time_delta
-
-            # Note-off event
-            elif 260 <= token < 388:
-                pitch = token - 260
-                if pitch in active_notes:
-                    start_time, velocity = active_notes[pitch]
-                    # Create note
-                    note = pretty_midi.Note(velocity=velocity, pitch=pitch, start=start_time, end=current_time)
-                    instrument.notes.append(note)
-                    del active_notes[pitch]
-
-            # Handle special tokens or unexpected values
-            elif token == self.EOS_TOKEN:
+            if token == self.eos_token:
                 break
 
-            i += 1
+            token_info = self.decode_token(token)
 
-        # Add any still-active notes with a small duration
-        for pitch, (start_time, velocity) in active_notes.items():
-            note = pretty_midi.Note(
-                velocity=velocity,
-                pitch=pitch,
-                start=start_time,
-                end=current_time + 0.1,  # Small duration to end the note
-            )
-            instrument.notes.append(note)
+            if token_info["type"] == "instrument":
+                current_instrument = token_info["value"]
+                i += 1
+            elif token_info["type"] == "pitch":
+                current_pitch = token_info["value"]
 
-        midi.instruments.append(instrument)
-        midi.write(output_file)
+                # Look ahead for duration
+                if i + 1 < len(tokens):
+                    next_token = tokens[i + 1]
+                    next_info = self.decode_token(next_token)
+                    if next_info["type"] == "duration":
+                        duration = self.dequantize_duration(next_info["value"])
+
+                        # Create a note
+                        note = pretty_midi.Note(
+                            velocity=100, pitch=current_pitch, start=current_time, end=current_time + duration
+                        )
+                        try:
+                            instruments[current_instrument].notes.append(note)
+                        except IndexError:
+                            pass
+                        finally:
+                            current_time += duration
+                            i += 2
+                    else:
+                        i += 1
+                else:
+                    i += 1
+            else:
+                i += 1
+
+        # Add instruments to MIDI data
+        for instrument in instruments:
+            if len(instrument.notes) > 0:
+                midi_data.instruments.append(instrument)
+
+        return midi_data
 
 
 @app.command()
@@ -313,7 +326,7 @@ def generate_transformer_dataset(cache_dir: str = ROOT_DIR.parent / "data_cache"
     processor = MIDIProcessor()
     with ProcessPoolExecutor(max_workers=n_workers) as executor:
         # Create a list of futures
-        futures = [executor.submit(processor.midi_to_tokens, file) for file in file_paths]
+        futures = [executor.submit(processor.midi_to_sequence, file) for file in file_paths]
 
         # Process results as they complete
         for future in track(
