@@ -13,7 +13,14 @@ class RNNDataset(Dataset):
     def __init__(self, data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.npy", sequence_length=150):
 
         self.sequence_length = sequence_length
-        self.data = np.load(data_path)
+
+        if data_path.suffix == ".npy":
+            self.data = np.load(data_path)
+        elif data_path.suffix == ".pkl":
+            with open(data_path, "rb") as f:
+                self.data = pickle.load(f)
+        else:
+            raise ValueError("Unsupported file type. Please provide a .npy or .pkl file.")
 
     def __len__(self):
         return self.data.shape[0]

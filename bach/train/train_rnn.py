@@ -15,7 +15,7 @@ app = typer.Typer()
 
 
 @app.command()
-def train(data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.npy", epochs: int = 200) -> None:
+def train(data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.pkl", epochs: int = 200) -> None:
     artifact_path = ARTIFACT_PATH / "rnn"
 
     artifact_path.mkdir(exist_ok=True, parents=True)
