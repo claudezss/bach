@@ -3,6 +3,7 @@ import torch.nn as nn
 import typer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 from bach import get_device
 from bach.data import MIDIProcessor
@@ -25,7 +26,9 @@ def train(epochs: int = 10):
 
     processor = MIDIProcessor()
 
-    train_loader = DataLoader(dataset, batch_size=328, shuffle=True)
+    train_loader = DataLoader(dataset[:175000], batch_size=328, shuffle=True)
+
+    val_loader = DataLoader(dataset[175000:215000], batch_size=328, shuffle=False)
 
     model = MusicTransformer(vocab_size=processor.vocab_size)
 
@@ -44,6 +47,9 @@ def train(epochs: int = 10):
     model.train()
 
     criterion = nn.CrossEntropyLoss(ignore_index=model.processor.PAD_TOKEN if hasattr(model, "processor") else -100)
+
+    train_losses = []
+    val_losses = []
 
     for epoch in range(epochs):
 
@@ -82,7 +88,24 @@ def train(epochs: int = 10):
                 )
 
         avg_loss = total_loss / len(train_loader)
+        train_losses.append(avg_loss)
         print(f"Epoch {epoch+1}/{epochs} complete, Avg Loss: {avg_loss:.4f}")
+
+        # Validation phase
+        model.eval()
+        total_val_loss = 0
+        with torch.no_grad():
+            for x_val, y_val in val_loader:
+                x_val, y_val = x_val.to(device), y_val.to(device)
+                src_mask = model._generate_square_subsequent_mask(x_val.size(1)).to(x_val.device)
+                output_val = model(x_val, src_mask)
+                output_val = output_val.reshape(-1, model.vocab_size)
+                y_val = y_val.reshape(-1)
+                val_loss = criterion(output_val, y_val)
+                total_val_loss += val_loss.item()
+        
+        avg_val_loss = total_val_loss / len(val_loader)
+        val_losses.append(avg_val_loss)
 
         # Save checkpoint
         torch.save(
@@ -94,6 +117,17 @@ def train(epochs: int = 10):
             },
             artifacts_path / f"epoch_{epoch+1}.pt",
         )
+    
+    # Plot the training and validation losses
+    plt.figure(figsize=(10, 5))
+    plt.plot(range(1, epochs + 1), train_losses, label="Training Loss", marker="o")
+    plt.plot(range(1, epochs + 1), val_losses, label="Validation Loss", marker="o")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.title("Training vs Validation Loss")
+    plt.legend()
+    plt.savefig(artifacts_path / "loss_plot.png")
+    plt.show()
 
 
 if __name__ == "__main__":

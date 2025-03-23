@@ -5,6 +5,7 @@ import torch
 import typer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 from bach import ROOT_DIR, get_device
 from bach.dataset import RNNDataset
@@ -28,8 +29,6 @@ def train(data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.pkl", epoc
 
     device = get_device()
 
-    print(device)
-
     model = MusicRNN().to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-5)
@@ -41,6 +40,9 @@ def train(data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.pkl", epoc
     epoch_loop = tqdm(range(epochs), leave=True)
 
     best_loss = np.inf
+
+    train_losses = []
+    test_losses = []
 
     for epoch in epoch_loop:
 
@@ -68,6 +70,7 @@ def train(data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.pkl", epoc
             total_loss += loss.item()
 
         avg_loss = total_loss / len(loader)
+        train_losses.append(avg_loss)
 
         scheduler.step()
 
@@ -82,6 +85,7 @@ def train(data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.pkl", epoc
                 total_test_loss += loss.item()
 
         avg_test_loss = total_test_loss / len(test_loader)
+        test_losses.append(avg_test_loss)
 
         if avg_test_loss < best_loss:
             is_best = True
@@ -92,6 +96,16 @@ def train(data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.pkl", epoc
 
         epoch_loop.set_description(f"Epoch [{epoch + 1}/{epochs}]")
         epoch_loop.set_postfix(train_loss=avg_loss, test_loss=avg_test_loss, is_best=is_best)
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(range(epochs), train_losses, label="Training Loss", marker="o")
+    plt.plot(range(epochs), test_losses, label="Validation Loss", marker="o")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.title("Training vs Validation Loss")
+    plt.legend()
+    plt.savefig(artifact_path / "loss_plot.png")
+    plt.show()
 
 
 if __name__ == "__main__":
