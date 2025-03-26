@@ -10,7 +10,12 @@ from bach import ROOT_DIR
 
 
 class RNNDataset(Dataset):
-    def __init__(self, data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.npy", sequence_length=150):
+    def __init__(
+        self,
+        data_path: Path = ROOT_DIR.parent / "data_cache" / "dataset.npy",
+        sequence_length=150,
+        max_data_size: int | None = None,
+    ):
 
         self.sequence_length = sequence_length
 
@@ -22,6 +27,17 @@ class RNNDataset(Dataset):
         else:
             raise ValueError("Unsupported file type. Please provide a .npy or .pkl file.")
 
+        self.data = torch.tensor(self.data, dtype=torch.float32)
+
+        if max_data_size is not None:
+            self.data = self.data[:max_data_size, :, :]
+
+        self.mean = torch.mean(self.data)
+        self.std = torch.std(self.data)
+
+        # Standardize the tensor
+        self.data = (self.data - self.mean) / self.std
+
     def __len__(self):
         return self.data.shape[0]
 
@@ -32,7 +48,12 @@ class RNNDataset(Dataset):
 
 # Dataset
 class MIDIDataset(Dataset):
-    def __init__(self, tokens_file_path=ROOT_DIR.parent / "data_cache" / "transformer_dataset.pkl", seq_length=512):
+    def __init__(
+        self,
+        tokens_file_path=ROOT_DIR.parent / "data_cache" / "transformer_dataset.pkl",
+        seq_length=512,
+        max_data_size: int | None = None,
+    ):
 
         with open(tokens_file_path, "rb") as f:
             self.tokens = pickle.load(f)
@@ -54,6 +75,9 @@ class MIDIDataset(Dataset):
                     last_seq = token[-seq_length:]
                     if len(last_seq) == seq_length:
                         self.token_sequences.append(last_seq)
+
+        if max_data_size is not None:
+            self.token_sequences = self.token_sequences[:max_data_size]
 
         print(f"Created {len(self.token_sequences)} sequences")
 

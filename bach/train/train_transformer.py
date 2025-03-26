@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import typer
@@ -14,13 +15,13 @@ app = typer.Typer()
 
 
 @app.command()
-def train(epochs: int = 20):
+def train(epochs: int = 20, max_data_size: int = 10_000):
 
     artifacts_path = ARTIFACT_PATH / "transformer"
 
     artifacts_path.mkdir(exist_ok=True, parents=True)
 
-    dataset = MIDIDataset()
+    dataset = MIDIDataset(max_data_size=max_data_size)
 
     processor = MIDIProcessor()
 
@@ -49,6 +50,10 @@ def train(epochs: int = 20):
     model.to(device)
 
     criterion = nn.CrossEntropyLoss(ignore_index=model.processor.PAD_TOKEN if hasattr(model, "processor") else -100)
+
+    train_losses = []
+
+    val_losses = []
 
     for epoch in range(epochs):
 
@@ -92,6 +97,8 @@ def train(epochs: int = 20):
 
         avg_loss = total_loss / len(train_loader)
 
+        train_losses.append(avg_loss)
+
         print(f"Epoch {epoch + 1}/{epochs} complete, Avg Loss: {avg_loss:.4f}")
 
         model.eval()
@@ -125,6 +132,9 @@ def train(epochs: int = 20):
                     )
 
         avg_val_loss = total_val_loss / len(val_loader)
+
+        val_losses.append(avg_val_loss)
+
         print(f"Epoch {epoch + 1}/{epochs} complete, Avg Val Loss: {avg_val_loss:.4f}")
 
         # Save checkpoint
@@ -134,9 +144,22 @@ def train(epochs: int = 20):
                 "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "loss": avg_loss,
+                "train_losses": train_losses,
+                "val_losses": val_losses,
             },
             artifacts_path / f"epoch_{epoch+1}.pt",
         )
+
+    # Plot the training and validation losses
+    plt.figure(figsize=(10, 5))
+    plt.plot(range(1, epochs + 1), train_losses, label="Training Loss", marker="o")
+    plt.plot(range(1, epochs + 1), val_losses, label="Validation Loss", marker="o")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.title("Training vs Validation Loss")
+    plt.legend()
+    plt.savefig(artifacts_path / "loss_plot.png")
+    plt.show()
 
 
 if __name__ == "__main__":
