@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import typer
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 
 from bach import get_device
@@ -13,9 +13,8 @@ from bach.train import ARTIFACT_PATH
 app = typer.Typer()
 
 
-# Training utilities
 @app.command()
-def train(epochs: int = 10):
+def train(epochs: int = 20):
 
     artifacts_path = ARTIFACT_PATH / "transformer"
 
@@ -25,7 +24,15 @@ def train(epochs: int = 10):
 
     processor = MIDIProcessor()
 
-    train_loader = DataLoader(dataset, batch_size=328, shuffle=True)
+    train_size = int(len(dataset) * 0.85)
+
+    val_size = int(len(dataset) - train_size)
+
+    train_set, val_set = random_split(dataset, [train_size, val_size])
+
+    train_loader = DataLoader(train_set, batch_size=64, shuffle=True)
+
+    val_loader = DataLoader(val_set, batch_size=64, shuffle=False)
 
     model = MusicTransformer(vocab_size=processor.vocab_size)
 
@@ -41,13 +48,15 @@ def train(epochs: int = 10):
 
     model.to(device)
 
-    model.train()
-
     criterion = nn.CrossEntropyLoss(ignore_index=model.processor.PAD_TOKEN if hasattr(model, "processor") else -100)
 
     for epoch in range(epochs):
 
         total_loss = 0
+
+        total_val_loss = 0
+
+        model.train()
 
         loop = tqdm(train_loader, leave=True)
 
@@ -82,7 +91,41 @@ def train(epochs: int = 10):
                 )
 
         avg_loss = total_loss / len(train_loader)
-        print(f"Epoch {epoch+1}/{epochs} complete, Avg Loss: {avg_loss:.4f}")
+
+        print(f"Epoch {epoch + 1}/{epochs} complete, Avg Loss: {avg_loss:.4f}")
+
+        model.eval()
+
+        loop = tqdm(val_loader, leave=True)
+
+        for batch_idx, (x, y) in enumerate(loop):
+
+            x, y = x.to(device), y.to(device)
+
+            with torch.no_grad():
+
+                # Create mask for causal attention
+                src_mask = model._generate_square_subsequent_mask(x.size(1)).to(x.device)
+
+                output = model(x, src_mask)
+
+                # Reshape for loss computation
+                output = output.reshape(-1, model.vocab_size)
+                y = y.reshape(-1)
+
+                loss = criterion(output, y)
+
+                total_val_loss += loss.item()
+
+                if batch_idx % 10 == 0:
+                    loop.set_postfix(
+                        Epoch=f"{epoch+1}/{epochs}",
+                        Batch=f"{batch_idx}/{len(val_loader)}",
+                        ValLoss=f"{loss.item():.4f}",
+                    )
+
+        avg_val_loss = total_val_loss / len(val_loader)
+        print(f"Epoch {epoch + 1}/{epochs} complete, Avg Val Loss: {avg_val_loss:.4f}")
 
         # Save checkpoint
         torch.save(
