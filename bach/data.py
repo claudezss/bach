@@ -236,7 +236,9 @@ class MIDIProcessor:
             print(f"Error processing MIDI file {midi_file}: {e}")
             return []
 
-    def tokens_to_midi(self, tokens: List[int], output_file: str):
+    def tokens_to_midi(
+        self, tokens: List[int], output_file: str = None, return_data: bool = False
+    ) -> Optional[str] | pretty_midi.PrettyMIDI:
         """Convert a sequence of tokens back to a MIDI file"""
         midi = pretty_midi.PrettyMIDI()
         instrument = pretty_midi.Instrument(program=0)  # Piano by default
@@ -296,6 +298,8 @@ class MIDIProcessor:
             instrument.notes.append(note)
 
         midi.instruments.append(instrument)
+        if return_data:
+            return midi
         midi.write(output_file)
 
 

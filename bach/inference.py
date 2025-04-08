@@ -8,7 +8,7 @@ from huggingface_hub import hf_hub_download
 
 from bach import get_device
 from bach.data import MIDIProcessor
-from bach.model import MusicRNN, MusicTransformer
+from bach.model import MusicTransformer
 
 app = typer.Typer()
 
@@ -44,61 +44,20 @@ def generate_random_midi(output_path="random_music.mid", num_notes=127, instrume
     print(f"Random MIDI file saved at: {output_path}")
 
 
-def generate_music() -> pretty_midi.PrettyMIDI:
-    from bach.data import midi_to_notes
-
-    device = "cuda"
-    model = MusicRNN().to(device)
-    model.load_state_dict(torch.load("D:\Dev\\repo\\bach\\artifacts\\rnn_model.pt"))
-
-    model.eval()
-
-    input_midi = midi_to_notes("D:\Dev\\repo\\bach\data_cache\data\\albeniz-aragon_fantasia_op47_part_6.mid")
-
-    input_midi_ts = torch.tensor(input_midi, dtype=torch.float32).to(device)
-    input_midi_ts = input_midi_ts[0, :, :]
-
-    generated_sequence = []
-
-    with torch.inference_mode():
-        for _ in range(3):
-            output = model(input_midi_ts)
-            next_note = output[:15, :]
-            input_midi_ts = torch.cat([input_midi_ts[15:, :], next_note])
-            generated_sequence.append(next_note.cpu().numpy())
-
-    music = np.array(generated_sequence).reshape(-1, 4)
-
-    midi = pretty_midi.PrettyMIDI()
-
-    instrument = pretty_midi.Instrument(program=pretty_midi.instrument_name_to_program("Acoustic Grand Piano"))
-
-    start_time = 0
-    for note_data in music:
-        _, duration, pitch, velocity = note_data
-
-        pitch = int(np.clip(pitch, 0, 127))  # Ensure valid pitch range
-        velocity = int(np.clip(velocity, 0, 127))  # Ensure valid velocity
-
-        note = pretty_midi.Note(velocity=velocity, pitch=pitch, start=start_time, end=start_time + duration)
-        start_time = start_time + duration
-        instrument.notes.append(note)
-
-    midi.instruments.append(instrument)
-    midi.write("test.mid")
-
-
-@app.command()
-def generate_music_by_transformer(
+def transformer_inference(
     input_midi_path: str,
-    output_midi_path: str,
     temperatures: list[float] = (0.1, 0.5, 1),
     input_seq_length: int = 100,
     max_output_seq_length: int = 300,
 ):
     cache_dir = Path(__file__).parent.parent / "data_cache" / "model"
+
     cache_dir.mkdir(exist_ok=True, parents=True)
 
+    typer.secho(
+        f"Downloading model from Hugging Face Hub (https://huggingface.co/claudezss/bach) " f"to {cache_dir}",
+        fg=typer.colors.GREEN,
+    )
     hf_hub_download(
         repo_id="claudezss/bach",
         filename="music_transformer.pt",
@@ -112,6 +71,8 @@ def generate_music_by_transformer(
     processor = MIDIProcessor()
     model.processor = processor
     device = get_device()
+
+    typer.secho(f"Running inference on {device}", fg=typer.colors.GREEN)
     model.to(device)
     model.eval()
 
@@ -136,15 +97,39 @@ def generate_music_by_transformer(
 
     input = sequence[0][:input_seq_length]
 
-    output_midi_path = Path(output_midi_path)
+    input_midi = processor.tokens_to_midi(input, return_data=True)
 
-    processor.tokens_to_midi(input, str((output_midi_path.parent / "input.mid").absolute()))
+    output_midi_data = {"input": input_midi}
 
     for temperature in temperatures:
-        file_path = output_midi_path.parent / f"{output_midi_path.name}_output_temp_{temperature}.mid"
+
         generated_tokens = model.generate(input, max_length=max_output_seq_length, temperature=temperature)
 
-        processor.tokens_to_midi(generated_tokens, str(file_path.absolute()))
+        generated_midi = processor.tokens_to_midi(generated_tokens, return_data=True)
+        output_midi_data.update({f"temperature-{temperature}": generated_midi})
+    return output_midi_data
+
+
+@app.command()
+def generate_music_by_transformer(
+    input_midi_path: str,
+    output_midi_path: str,
+    temperatures: list[float] = (0.1, 0.5, 1),
+    input_seq_length: int = 100,
+    max_output_seq_length: int = 300,
+):
+    generated_midi_data = transformer_inference(
+        input_midi_path=input_midi_path,
+        temperatures=temperatures,
+        input_seq_length=input_seq_length,
+        max_output_seq_length=max_output_seq_length,
+    )
+    output_midi_path = Path(output_midi_path)
+
+    for label, midi_data in generated_midi_data.items():
+        file_path = output_midi_path.parent / f"{label}.mid"
+        midi_data.write(str(file_path.absolute()))
+        typer.secho(f"Generated MIDI file was saved at: {file_path}", fg=typer.colors.GREEN)
 
 
 if __name__ == "__main__":

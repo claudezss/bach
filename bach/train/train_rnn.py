@@ -72,9 +72,9 @@ def train(
 
             optimizer.zero_grad()
 
-            with torch.amp.autocast("cuda"):
-                out = model(batch)
-                loss = criterion(out, batch)
+            out = model(batch)
+
+            loss = criterion(out, batch)
 
             loss.backward()
 

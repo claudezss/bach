@@ -38,6 +38,9 @@ class RNNDataset(Dataset):
         # Standardize the tensor
         self.data = (self.data - self.mean) / self.std
 
+    def inverse_transform(self, scaled_data: torch.Tensor) -> torch.Tensor:
+        return (scaled_data * self.std) + self.mean
+
     def __len__(self):
         return self.data.shape[0]
 
