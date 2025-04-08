@@ -39,7 +39,8 @@ dependencies = [
     "huggingface_hub",
     "pretty_midi",
     "tqdm",
-    "typer"
+    "typer",
+    "matplotlib"
 ]
 
 [project.optional-dependencies]
