@@ -1,9 +1,11 @@
 # bach
 ML based music generator
 
-## Test Jupyter Notebook
+## Jupyter Notebook Tutorial
 
 [Notebook](./test.ipynb)
+This notebook contains tests and examples for using the Bach music generator. It demonstrates how to load data, and call
+inference endpoint to generate music from input MIDI file
 
 ## Setup
 
@@ -32,6 +34,9 @@ python -m bach artifact upload-transformer-model ${path-to-model-artifact}
 python -m bach artifact upload-rnn-model ${path-to-model-artifact}
 
 python -m bach infer generate-music-by-transformer ${path-to-input-midi-file} ${path-to-output-midi-file}
+# Example
+# python -m bach infer generate-music-by-transformer data_cache/data/albeniz-aragon_fantasia_op47_part_6.mid ./
+#
 # output
 # Downloading model from Hugging Face Hub (https://huggingface.co/claudezss/bach) to data_cache\model
 # Running inference on cuda
