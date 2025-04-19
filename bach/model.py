@@ -113,7 +113,7 @@ class MusicTransformer(
                 generated.append(next_token)
 
                 # Stop if we generate an EOS token
-                if next_token == self.processor.EOS_TOKEN:
+                if next_token == 128:
                     break
 
                 # Update the input sequence

@@ -15,6 +15,7 @@ from huggingface_hub import hf_hub_download
 from rich.progress import track
 
 from bach import ROOT_DIR
+from bach.data_process.tokenizer import tokenize_midi
 
 app = typer.Typer()
 
@@ -317,7 +318,7 @@ def generate_transformer_dataset(cache_dir: str = ROOT_DIR.parent / "data_cache"
     processor = MIDIProcessor()
     with ProcessPoolExecutor(max_workers=n_workers) as executor:
         # Create a list of futures
-        futures = [executor.submit(processor.midi_to_tokens, file) for file in file_paths]
+        futures = [executor.submit(tokenize_midi, file) for file in file_paths]
 
         # Process results as they complete
         for future in track(
