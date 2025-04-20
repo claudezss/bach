@@ -21,7 +21,7 @@ def train(epochs: int = 20, max_data_size: int = 10_000):
 
     artifacts_path.mkdir(exist_ok=True, parents=True)
 
-    dataset = MIDIDataset(max_data_size=max_data_size)
+    dataset = MIDIDataset()
 
     processor = MIDIProcessor()
 
@@ -31,16 +31,16 @@ def train(epochs: int = 20, max_data_size: int = 10_000):
 
     train_set, val_set = random_split(dataset, [train_size, val_size])
 
-    train_loader = DataLoader(train_set, batch_size=64, shuffle=True)
+    train_loader = DataLoader(train_set, batch_size=256, shuffle=True)
 
-    val_loader = DataLoader(val_set, batch_size=64, shuffle=False)
+    val_loader = DataLoader(val_set, batch_size=256, shuffle=False)
 
     model = MusicTransformer(vocab_size=processor.vocab_size)
 
     device = get_device()
 
     # Initialize optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
+    optimizer = torch.optim.Adam(model.parameters(), lr=8e-4, betas=(0.9, 0.98), eps=1e-9)
 
     # Learning rate scheduler
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)

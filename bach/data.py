@@ -1,6 +1,7 @@
 import json
 import logging
 import multiprocessing
+import os
 import pickle
 import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -308,14 +309,16 @@ class MIDIProcessor:
 def generate_transformer_dataset(cache_dir: str = ROOT_DIR.parent / "data_cache", n_workers: int = None) -> None:
     if not isinstance(cache_dir, Path):
         cache_dir = Path(cache_dir)
-    with open(cache_dir / "midi_files.json", "r") as f:
-        file_paths = json.load(f)
-    with open(cache_dir / "midi_files.json", "r") as f:
-        file_paths = json.load(f)
+    file_paths = []
+    for root, _, files in os.walk(cache_dir / "data"):
+        for file in files:
+            if file.endswith(".midi") or file.endswith(".mid"):
+                file_path = os.path.join(root, file)
+                file_paths.append(file_path)
 
     n_workers = get_workers(n_workers)
     results = []
-    processor = MIDIProcessor()
+
     with ProcessPoolExecutor(max_workers=n_workers) as executor:
         # Create a list of futures
         futures = [executor.submit(tokenize_midi, file) for file in file_paths]
